@@ -1,0 +1,169 @@
+apply plugin: 'java'
+apply plugin: 'war'
+apply plugin: 'eclipse-wtp'
+
+sourceCompatibility = 1.8		         //設定編譯階段的JDK版本
+sourceSets.main.java.srcDir  'src'	     //使用src目錄放置Java程式原始碼      (gradle原預設位置是src/main/java目錄)
+sourceSets.main.resources.srcDir  'src'	 //使用src目錄放置resources原始碼 (gradle原預設位置是src/main/resources目錄) (在進行cargoRedeployRemote以熱部署匯出war檔時，將可包含xml檔)
+                                                                     
+webAppDirName = 'WebContent'		     //使用WebContent目錄放置網頁資源
+									
+repositories {
+	mavenCentral()					     //使用 maven central repository (中央存儲庫)
+}
+
+configure(allprojects) { project ->      //函式庫<version>設定動態
+    ext.springVersion = "4.3.2.RELEASE"
+    ext.hibernateVersion = "5.2.8.Final"
+    ext.hibernateValidatorVersion = "5.4.0.Final"
+    
+    ext.servletVersion = "3.1.0"
+    ext.websocketVersion = "1.1"
+    ext.jstlVersion = "1.2.5"
+    ext.jsonVersion = "1.0.2"
+    ext.mailVersion = "1.5.2"
+    
+    ext.commonslangVersion = "3.0"
+    ext.commonsloggingVersion = "1.2"
+    ext.slf4jVersion = "1.7.19"
+    ext.log4jVersion = "1.2.17"
+    
+}
+
+//設置依賴
+//自行加入會用到的函式庫Library套件，格式如下 :<groupId> : <artifactId> : <version>
+dependencies {
+    //spring
+    compile("org.springframework:spring-context:${springVersion}")
+    compile("org.springframework:spring-context-support:${springVersion}")
+    compile("org.springframework:spring-orm:${springVersion}")
+    compile("org.springframework:spring-tx:${springVersion}")
+    compile("org.springframework:spring-aspects:${springVersion}")
+    compile("org.springframework:spring-webmvc:${springVersion}")
+    
+    //hibernate
+    compile("org.hibernate:hibernate-core:${hibernateVersion}")
+    compile("org.hibernate:hibernate-entitymanager:${hibernateVersion}")
+    compile("org.hibernate:hibernate-c3p0:${hibernateVersion}")
+    compile("org.hibernate:hibernate-proxool:${hibernateVersion}")
+    compile("org.hibernate:hibernate-java8:${hibernateVersion}")   //註: hibernate 5 才能支援 Java 8 
+    
+    //hibernate-validator (jsr303 Bean Validation) (jsr303 Bean 驗證)
+    compile("org.hibernate:hibernate-validator:${hibernateValidatorVersion}")
+    
+    //servlet
+    providedCompile("javax.servlet:javax.servlet-api:${servletVersion}")
+    
+    //websocket
+    providedCompile("javax.websocket:javax.websocket-api:${websocketVersion}")
+    
+    //jstl
+    runtime("org.apache.taglibs:taglibs-standard-impl:${jstlVersion}")
+    runtime("org.apache.taglibs:taglibs-standard-spec:${jstlVersion}")
+    
+    //json
+    compile("org.glassfish:javax.json:${jsonVersion}")
+    
+    //mail
+    compile("com.sun.mail:javax.mail:${mailVersion}")
+    
+    //commons-lang
+    compile("org.apache.commons:commons-lang3:${commonslangVersion}")
+    
+    //commons-logging
+    compile("commons-logging:commons-logging:${commonsloggingVersion}")
+    
+    //slf4j
+    compile("org.slf4j:slf4j-api:${slf4jVersion}")
+    compile("org.slf4j:slf4j-log4j12:${slf4jVersion}")
+    
+    //log4j
+    compile("log4j:log4j:${log4jVersion}")
+    
+    // https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-core
+	compile group: 'com.fasterxml.jackson.core', name: 'jackson-core', version: '2.8.8'
+	
+	// https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-annotations
+	compile group: 'com.fasterxml.jackson.core', name: 'jackson-annotations', version: '2.8.8'
+
+	// https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-databind
+	compile group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: '2.8.8'
+	
+	//解PDF用
+	compile 'org.apache.pdfbox:pdfbox:1.8.7'
+	
+	
+    
+    
+}
+
+buildscript {
+	repositories {
+		jcenter()
+	}
+	dependencies {
+		classpath 'com.bmuschko:gradle-cargo-plugin:2.2.2'
+	}
+}
+
+//使用gradle-cargo-plugin熱部署(輕量級)war
+//需先啟動Tomcat，並於tomcat-users.xml添加：<user password="manager-script" roles="manager-script" username="manager-script"/>
+apply plugin: 'com.bmuschko.cargo'
+cargo {
+    containerId = 'tomcat8x'
+    port = 8081
+    remote {
+		protocol = 'http'
+		hostname = 'localhost'
+		username = 'manager-script'
+		password = 'manager-script'
+    }
+}
+
+//Eclipse Project Facets 只有在 Dynamic Web Project 時才有功能，只是方便"快速擴充套件" 與 "控管套件版本"
+import org.gradle.plugins.ide.eclipse.model.Facet
+eclipse {
+	wtp {
+		facet {
+			facet name: 'jst.web', type: Facet.FacetType.fixed
+			facet name: 'jst.web', version: '3.1'
+
+			facet name: 'jst.java', type: Facet.FacetType.fixed
+			facet name: 'jst.java', version: '1.8'
+			
+			facet name: 'wst.jsdt.web', type: Facet.FacetType.fixed
+			facet name: 'wst.jsdt.web', version: '1.0'
+		}
+	}
+}
+
+//在進行cargoRedeployRemote以熱部署匯出war檔時，將可包含xml檔與java原始檔
+war {
+    webInf{
+        from('src') {
+            include '**/*.*'
+            into('classes/')
+        }
+           
+    }
+}
+
+//打包jar
+jar {
+    //產出檔名設置mitake-print-0.1.0.jar
+    baseName = 'mitake-print'
+    version =  '0.1.0'
+    //此方法類似fatjar將相依套件一併包進來
+    from {
+        configurations.runtime.collect {
+            it.isDirectory() ? it : zipTree(it)
+        }
+    }
+    //需要描述檔但不用啟動程式
+    manifest {
+        //attributes 'Main-Class': 'com.mitake.utils.print.PrintUtil'
+    }
+    //包含跟不包含則一使用
+    //include('com/**')
+    exclude('test/**')
+}
